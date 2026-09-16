@@ -37,7 +37,7 @@ import mediapipe as mp
 from normalize import normalize_landmarks
 from mp_setup import create_landmarker
 
-DATASET_DIR = r"C:\Users\sodex\Downloads\archive (1)"  # <-- CHANGE THIS
+DATASET_DIR = r"C:\Users\User\Downloads\archive"  # <-- CHANGE THIS
 DATA_DIR = "../data"
 CSV_PATH = os.path.join(DATA_DIR, "landmarks.csv")
 VALID_LETTERS = "abcdefghiklmnopqrstuvwxy"  # excludes j and z (motion-based)
