@@ -12,6 +12,6 @@
   "beep_feedback": true,
   "gpio_button_pin": null,
   "log_level": "INFO",
-  "session_log_path": "../docs/session_log.md",
+  "session_log_path": "../docs/translation_history.csv",
   "spell_extra_words": ["asl"]
 }

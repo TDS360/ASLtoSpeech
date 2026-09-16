@@ -17,7 +17,8 @@ HOW IT WORKS:
   the two L's in "HELLO") don't blur into one hold.
 - When you drop your hand out of frame and keep it out for about
   WORD_PAUSE_SECONDS, whatever word you were building is spell-
-  checked, spoken out loud, and added to the sentence.
+  checked, spoken out loud, added to the sentence, and logged (raw
+  letters vs. spoken word) to docs/translation_history.csv.
 
 Both delays are measured with a real clock (time.time()), not a
 frame count, so they take the same number of seconds whether this
@@ -53,6 +54,7 @@ import platform
 import threading
 import time
 import logging
+import csv
 from collections import deque, Counter
 from datetime import datetime
 
@@ -77,7 +79,7 @@ DEFAULT_CONFIG = {
     "beep_feedback": True,         # short tone on letter-lock and word-finish
     "gpio_button_pin": None,       # e.g. 2 -- BCM pin number for a "clear" button, or null
     "log_level": "INFO",           # DEBUG shows per-frame detail; INFO is normal running
-    "session_log_path": "../docs/session_log.md",
+    "session_log_path": "../docs/translation_history.csv",
     "spell_extra_words": ["asl"],  # words the spell-checker should never "correct" away
 }
 
@@ -234,11 +236,27 @@ def play_beep(frequency=880, duration_ms=90):
 
 
 # --- Session transcript logging (handy for a demo write-up) -------------
-def log_session_event(word):
+def log_session_event(raw_word, spoken_word):
+    """Appends one row per finished word to a CSV: raw fingerspelled
+    letters vs. what was actually spoken (after spell-correction), with
+    a timestamp. This is the kind of real-world accuracy data judges
+    tend to want to see -- open it in Excel/Sheets or print it at the
+    booth as-is."""
     try:
-        os.makedirs(os.path.dirname(SESSION_LOG_PATH), exist_ok=True)
-        with open(SESSION_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(f"- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -- {word}\n")
+        log_dir = os.path.dirname(SESSION_LOG_PATH)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        file_is_new = not os.path.exists(SESSION_LOG_PATH)
+        with open(SESSION_LOG_PATH, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if file_is_new:
+                writer.writerow(["timestamp", "raw_letters", "spoken_word", "was_corrected"])
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                raw_word,
+                spoken_word,
+                raw_word.lower() != spoken_word.lower(),
+            ])
     except OSError as e:
         log.debug(f"[session log] couldn't write ({e})")
 
@@ -336,11 +354,12 @@ def finish_word():
     global sentence, current_word
     if not current_word:
         return
+    raw_word = current_word
     corrected = maybe_correct(current_word)
     sentence += corrected + " "
     speak(corrected)
     play_beep(660, 100)  # lower tone: word finished
-    log_session_event(corrected)
+    log_session_event(raw_word, corrected)
     current_word = ""
 
 
