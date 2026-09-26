@@ -94,6 +94,9 @@ logging.basicConfig(
 log = logging.getLogger("translator")
 
 HEADLESS = bool(config["headless"])
+# Picamera2 is the existing Raspberry Pi camera mode.  It also selects the
+# sentence-only touchscreen UI instead of the desktop OpenCV preview/HUD.
+RASPBERRY_PI_MODE = bool(config["use_picamera2"])
 WORD_PAUSE = float(config["word_pause_seconds"])
 SENTENCE_PAUSE = float(config["sentence_pause_seconds"])
 BEEP = bool(config["beep_feedback"])
@@ -281,11 +284,12 @@ if config["gpio_button_pin"] is not None:
 
 # --- Translator state ---------------------------------------------------
 class Session:
-    def __init__(self):
+    def __init__(self, display=None):
         self.words = []          # finished (spell-checked) words
         self.letters = ""        # letters of the word being signed
         self.last_sentence = ""
         self.last_raw = ""
+        self.display = display
 
     def finish_word(self):
         if not self.letters:
@@ -309,6 +313,12 @@ class Session:
         save_history(raw, sentence)
         self.last_raw, self.last_sentence = raw, sentence
         self.words = []
+        if self.display is not None:
+            try:
+                self.display.update_sentence(sentence)
+            except Exception as e:
+                log.warning(f"Raspberry Pi display update failed ({e}); continuing without it.")
+                self.display = None
 
     def backspace(self):
         if self.letters:
@@ -401,7 +411,15 @@ def main():
 
     stab = SignStabilizer(config["confidence_threshold"], config["letter_hold_seconds"],
                           config["smoothing_frames"])
-    s = Session()
+    display = None
+    if RASPBERRY_PI_MODE:
+        try:
+            from pi_display import PiSentenceDisplay
+            display = PiSentenceDisplay()
+            log.info("Raspberry Pi sentence display ready.")
+        except Exception as e:
+            log.warning(f"Raspberry Pi display unavailable ({e}); recognition will continue.")
+    s = Session(display)
     paused, show_help = False, True
     no_hand_since = None
     event = stab.hand_lost()
@@ -410,6 +428,12 @@ def main():
 
     try:
         while True:
+            if s.display is not None:
+                try:
+                    s.display.pump_events()
+                except Exception as e:
+                    log.warning(f"Raspberry Pi display event loop failed ({e}); continuing without it.")
+                    s.display = None
             ok, frame = camera.read()
             if not ok or frame is None:
                 bad_reads += 1
@@ -448,7 +472,7 @@ def main():
                 if event.kind == "commit":
                     s.letters += event.letter.upper()
                     beep(1200, 50)
-                if not HEADLESS:
+                if not HEADLESS and not RASPBERRY_PI_MODE:
                     for hl in hands:
                         draw_landmarks(frame, hl)
             else:
@@ -469,7 +493,7 @@ def main():
             if gpio_clear.is_set():
                 s.clear(); gpio_clear.clear()
 
-            if HEADLESS:
+            if HEADLESS or RASPBERRY_PI_MODE:
                 continue
 
             raw, sentence, _ = polish_sentence(s.current_text().split())
@@ -509,7 +533,12 @@ def main():
     finally:
         s.finish_sentence()  # don't lose a half-finished sentence
         camera.release()
-        if not HEADLESS:
+        if s.display is not None:
+            try:
+                s.display.close()
+            except Exception as e:
+                log.warning(f"Raspberry Pi display close failed ({e}).")
+        if not HEADLESS and not RASPBERRY_PI_MODE:
             cv2.destroyAllWindows()
         landmarker.close()
 

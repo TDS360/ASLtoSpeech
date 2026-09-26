@@ -94,6 +94,10 @@ Keys: `SPACE` finish word · `ENTER` finish sentence · `BACKSPACE` delete · `p
 
 `confidence_threshold`, `letter_hold_seconds`, `word_pause_seconds`, `sentence_pause_seconds`, `smoothing_frames`, `spell_correct`, `speak_each_word`, `speech_rate`, `speech_volume`, `beep_feedback`, `camera_index`, `camera_width/height`, `headless`, `use_picamera2`, `gpio_button_pin`, `session_log_path`.
 
+When `use_picamera2` is enabled for Raspberry Pi mode, the translator uses a
+fullscreen Tkinter touchscreen display that shows only completed, cleaned
+sentences. The camera preview and desktop HUD remain available in desktop mode.
+
 ## Dataset and training
 
 `data/landmarks.csv` has ~200 samples per letter, 63 numbers each (21 points × x,y,z after normalization). Add your own with `python ml/collect_data.py`, then retrain with `python ml/train_model.py`, which compares Random Forest, SVM, KNN and MLP on a held-out 20% test split and saves the best model plus `docs/model_metrics.json`.
