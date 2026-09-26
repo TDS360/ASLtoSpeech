@@ -51,13 +51,18 @@ from mp_setup import create_landmarker, detect, draw_landmarks
 from normalize import normalize_landmarks
 from paths import CLASSIFIER_PATH, CONFIG_PATH, HISTORY_CSV, ML_DIR, resolve
 from pipeline import SignStabilizer, polish_sentence
+from runtime_config import resolve_runtime_config
 
 DEFAULT_CONFIG = {
     "camera_index": 0,
     "camera_width": 640,
     "camera_height": 480,
-    "use_picamera2": False,
     "headless": False,
+    "raspberry_pi": {
+        "mode": "auto",
+        "capture": {"width": 640, "height": 480, "frame_rate": 30},
+        "touchscreen": {"fullscreen": True, "width": None, "height": None},
+    },
     "confidence_threshold": 0.6,
     "letter_hold_seconds": 0.2,
     "word_pause_seconds": 0.45,
@@ -75,17 +80,60 @@ DEFAULT_CONFIG = {
 }
 
 
-def load_config():
-    config = dict(DEFAULT_CONFIG)
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            config.update(json.load(f))
-    except FileNotFoundError:
-        print(f"[config] {CONFIG_PATH} not found - using built-in defaults.")
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"[config] Couldn't read {CONFIG_PATH} ({e}) - using built-in defaults.")
+def _merged_config(defaults, overrides):
+    """Merge the two nested Raspberry Pi sections without mutating defaults."""
+    config = dict(defaults)
+    config.update(overrides)
+    pi = dict(defaults["raspberry_pi"])
+    pi.update(overrides.get("raspberry_pi", {}))
+    for section in ("capture", "touchscreen"):
+        values = dict(defaults["raspberry_pi"][section])
+        values.update(pi.get(section, {}))
+        pi[section] = values
+    config["raspberry_pi"] = pi
     return config
 
+
+def validate_config(config):
+    """Reject invalid runtime values before camera/display initialization."""
+    pi = config["raspberry_pi"]
+    if pi["mode"] not in {"auto", "enabled", "disabled"}:
+        raise ValueError("raspberry_pi.mode must be auto, enabled, or disabled")
+    for key in ("camera_index", "camera_width", "camera_height", "smoothing_frames",
+                "speech_rate"):
+        if isinstance(config[key], bool) or not isinstance(config[key], int) or config[key] < 0:
+            raise ValueError(f"{key} must be a non-negative integer")
+    for key in ("confidence_threshold", "letter_hold_seconds", "word_pause_seconds",
+                "sentence_pause_seconds", "speech_volume"):
+        if not isinstance(config[key], (int, float)) or config[key] < 0:
+            raise ValueError(f"{key} must be a non-negative number")
+    if not 0 <= config["confidence_threshold"] <= 1 or not 0 <= config["speech_volume"] <= 1:
+        raise ValueError("confidence_threshold and speech_volume must be between 0 and 1")
+    capture = pi["capture"]
+    for key in ("width", "height", "frame_rate"):
+        if isinstance(capture[key], bool) or not isinstance(capture[key], int) or capture[key] <= 0:
+            raise ValueError(f"raspberry_pi.capture.{key} must be a positive integer")
+    touchscreen = pi["touchscreen"]
+    if not isinstance(touchscreen["fullscreen"], bool):
+        raise ValueError("raspberry_pi.touchscreen.fullscreen must be boolean")
+    for key in ("width", "height"):
+        if touchscreen[key] is not None and (isinstance(touchscreen[key], bool) or not isinstance(touchscreen[key], int) or touchscreen[key] <= 0):
+            raise ValueError(f"raspberry_pi.touchscreen.{key} must be null or a positive integer")
+    return config
+
+
+def load_config():
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            overrides = json.load(f)
+        if not isinstance(overrides, dict):
+            raise ValueError("top level must be an object")
+        return validate_config(_merged_config(DEFAULT_CONFIG, overrides))
+    except FileNotFoundError:
+        print(f"[config] {CONFIG_PATH} not found - using built-in defaults.")
+    except (json.JSONDecodeError, OSError, ValueError, TypeError) as e:
+        print(f"[config] Couldn't use {CONFIG_PATH} ({e}) - using built-in defaults.")
+    return validate_config(_merged_config(DEFAULT_CONFIG, {}))
 
 config = load_config()
 logging.basicConfig(
@@ -94,9 +142,7 @@ logging.basicConfig(
 log = logging.getLogger("translator")
 
 HEADLESS = bool(config["headless"])
-# Picamera2 is the existing Raspberry Pi camera mode.  It also selects the
-# sentence-only touchscreen UI instead of the desktop OpenCV preview/HUD.
-RASPBERRY_PI_MODE = bool(config["use_picamera2"])
+RUNTIME = resolve_runtime_config(config["raspberry_pi"])
 WORD_PAUSE = float(config["word_pause_seconds"])
 SENTENCE_PAUSE = float(config["sentence_pause_seconds"])
 BEEP = bool(config["beep_feedback"])
@@ -237,12 +283,14 @@ def save_history(raw, sentence):
 class Camera:
     def __init__(self, cfg):
         self.picam = self.cap = None
-        if cfg["use_picamera2"]:
+        if RUNTIME.use_picamera2:
             try:
                 from picamera2 import Picamera2
+                capture = cfg["raspberry_pi"]["capture"]
                 self.picam = Picamera2()
                 self.picam.configure(self.picam.create_video_configuration(
-                    main={"size": (cfg["camera_width"], cfg["camera_height"]), "format": "BGR888"}))
+                    main={"size": (capture["width"], capture["height"]), "format": "BGR888"},
+                    controls={"FrameDurationLimits": (int(1_000_000 / capture["frame_rate"]),) * 2}))
                 self.picam.start()
             except Exception as e:
                 log.warning(f"Pi camera unavailable ({e}); trying a USB webcam.")
@@ -404,7 +452,7 @@ def main():
     except RuntimeError as e:
         fail(str(e))
     try:
-        landmarker = create_landmarker(num_hands=2)  # 2 so we can warn about extra hands
+        landmarker = create_landmarker(num_hands=RUNTIME.num_hands)
     except Exception as e:
         camera.release()
         fail(f"The hand-detection model couldn't load ({e}).")
@@ -412,10 +460,10 @@ def main():
     stab = SignStabilizer(config["confidence_threshold"], config["letter_hold_seconds"],
                           config["smoothing_frames"])
     display = None
-    if RASPBERRY_PI_MODE:
+    if RUNTIME.use_sentence_display:
         try:
             from pi_display import PiSentenceDisplay
-            display = PiSentenceDisplay()
+            display = PiSentenceDisplay(config["raspberry_pi"]["touchscreen"])
             log.info("Raspberry Pi sentence display ready.")
         except Exception as e:
             log.warning(f"Raspberry Pi display unavailable ({e}); recognition will continue.")
@@ -424,7 +472,8 @@ def main():
     no_hand_since = None
     event = stab.hand_lost()
     frame_times, bad_reads = [], 0
-    log.info("Translator running. " + ("Ctrl+C to quit." if HEADLESS else "Press h for keys, q to quit."))
+    log.info("Runtime mode: %s.", RUNTIME.reason)
+    log.info("Translator running. " + ("Ctrl+C to quit." if HEADLESS or not RUNTIME.show_opencv_window else "Press h for keys, q to quit."))
 
     try:
         while True:
@@ -472,7 +521,7 @@ def main():
                 if event.kind == "commit":
                     s.letters += event.letter.upper()
                     beep(1200, 50)
-                if not HEADLESS and not RASPBERRY_PI_MODE:
+                if not HEADLESS and RUNTIME.show_opencv_window:
                     for hl in hands:
                         draw_landmarks(frame, hl)
             else:
@@ -493,15 +542,16 @@ def main():
             if gpio_clear.is_set():
                 s.clear(); gpio_clear.clear()
 
-            if HEADLESS or RASPBERRY_PI_MODE:
+            if HEADLESS or not RUNTIME.show_opencv_window:
                 continue
 
             raw, sentence, _ = polish_sentence(s.current_text().split())
-            draw_hud(frame, {
-                "hands": len(hands), "brightness": brightness_of(frame), "fps": fps,
-                "threshold": stab.confidence_threshold, "paused": paused, "event": event,
-                "pending": pending, "raw": raw, "sentence": sentence,
-                "last": s.last_sentence, "help": show_help})
+            if RUNTIME.show_hud:
+                draw_hud(frame, {
+                    "hands": len(hands), "brightness": brightness_of(frame), "fps": fps,
+                    "threshold": stab.confidence_threshold, "paused": paused, "event": event,
+                    "pending": pending, "raw": raw, "sentence": sentence,
+                    "last": s.last_sentence, "help": show_help})
             cv2.imshow("ASL Fingerspelling Translator", frame)
 
             key = cv2.waitKey(1) & 0xFF
@@ -538,7 +588,7 @@ def main():
                 s.display.close()
             except Exception as e:
                 log.warning(f"Raspberry Pi display close failed ({e}).")
-        if not HEADLESS and not RASPBERRY_PI_MODE:
+        if not HEADLESS and RUNTIME.show_opencv_window:
             cv2.destroyAllWindows()
         landmarker.close()
 
