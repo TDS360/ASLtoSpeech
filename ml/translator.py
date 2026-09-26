@@ -51,6 +51,7 @@ from mp_setup import create_landmarker, detect, draw_landmarks
 from normalize import normalize_landmarks
 from paths import CLASSIFIER_PATH, CONFIG_PATH, HISTORY_CSV, ML_DIR, resolve
 from pipeline import SignStabilizer, polish_sentence
+from camera import Camera, CameraError
 from runtime_config import resolve_runtime_config
 
 DEFAULT_CONFIG = {
@@ -61,6 +62,7 @@ DEFAULT_CONFIG = {
     "raspberry_pi": {
         "mode": "auto",
         "capture": {"width": 640, "height": 480, "frame_rate": 30},
+        "allow_opencv_fallback": False,
         "touchscreen": {"fullscreen": True, "width": None, "height": None},
     },
     "confidence_threshold": 0.6,
@@ -109,6 +111,8 @@ def validate_config(config):
             raise ValueError(f"{key} must be a non-negative number")
     if not 0 <= config["confidence_threshold"] <= 1 or not 0 <= config["speech_volume"] <= 1:
         raise ValueError("confidence_threshold and speech_volume must be between 0 and 1")
+    if not isinstance(pi["allow_opencv_fallback"], bool):
+        raise ValueError("raspberry_pi.allow_opencv_fallback must be boolean")
     capture = pi["capture"]
     for key in ("width", "height", "frame_rate"):
         if isinstance(capture[key], bool) or not isinstance(capture[key], int) or capture[key] <= 0:
@@ -279,46 +283,6 @@ def save_history(raw, sentence):
         log.warning(f"Couldn't write history ({e})")
 
 
-# --- Camera -------------------------------------------------------------
-class Camera:
-    def __init__(self, cfg):
-        self.picam = self.cap = None
-        if RUNTIME.use_picamera2:
-            try:
-                from picamera2 import Picamera2
-                capture = cfg["raspberry_pi"]["capture"]
-                self.picam = Picamera2()
-                self.picam.configure(self.picam.create_video_configuration(
-                    main={"size": (capture["width"], capture["height"]), "format": "BGR888"},
-                    controls={"FrameDurationLimits": (int(1_000_000 / capture["frame_rate"]),) * 2}))
-                self.picam.start()
-            except Exception as e:
-                log.warning(f"Pi camera unavailable ({e}); trying a USB webcam.")
-                self.picam = None
-        if self.picam is None:
-            self.cap = cv2.VideoCapture(cfg["camera_index"])
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg["camera_width"])
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg["camera_height"])
-            if not self.cap.isOpened():
-                raise RuntimeError(
-                    f"No camera found at index {cfg['camera_index']}.\n"
-                    "  - Is a webcam plugged in, and not in use by Zoom/Teams/another app?\n"
-                    "  - On macOS allow camera access for Terminal/your IDE in\n"
-                    "    System Settings > Privacy & Security > Camera.\n"
-                    "  - Try \"camera_index\": 1 in ml/config.json if you have several cameras.")
-
-    def read(self):
-        if self.picam is not None:
-            return True, self.picam.capture_array()
-        return self.cap.read()
-
-    def release(self):
-        if self.picam is not None:
-            self.picam.stop()
-        if self.cap is not None:
-            self.cap.release()
-
-
 # --- Optional GPIO "clear" button ---------------------------------------
 gpio_clear = threading.Event()
 if config["gpio_button_pin"] is not None:
@@ -448,8 +412,8 @@ def draw_hud(frame, st):
 # --- Main loop ----------------------------------------------------------
 def main():
     try:
-        camera = Camera(config)
-    except RuntimeError as e:
+        camera = Camera(config, RUNTIME)
+    except CameraError as e:
         fail(str(e))
     try:
         landmarker = create_landmarker(num_hands=RUNTIME.num_hands)
@@ -483,7 +447,11 @@ def main():
                 except Exception as e:
                     log.warning(f"Raspberry Pi display event loop failed ({e}); continuing without it.")
                     s.display = None
-            ok, frame = camera.read()
+            try:
+                ok, frame = camera.read()
+            except CameraError as e:
+                log.error("%s", e)
+                break
             if not ok or frame is None:
                 bad_reads += 1
                 if bad_reads > 30:

@@ -98,10 +98,13 @@ Keys: `SPACE` finish word · `ENTER` finish sentence · `BACKSPACE` delete · `p
 Linux device-tree model/compatible metadata and falls back to the normal desktop
 webcam/OpenCV workflow when it is not a Pi; `enabled` explicitly forces Pi mode;
 and `disabled` explicitly preserves desktop mode even on a Pi. Pi mode attempts
-Picamera2 using `raspberry_pi.capture.width`, `height`, and `frame_rate`, uses
-one-hand MediaPipe tracking, and disables the OpenCV preview/HUD in favor of the
-sentence-only Tkinter display. If Picamera2 cannot start, it falls back to the
-configured USB webcam while keeping the Pi display behavior. Configure
+Picamera2 using the resolved `raspberry_pi.capture.width`, `height`, and
+`frame_rate` with a BGR888 stream, a two-buffer capture strategy, and one-hand
+MediaPipe tracking. Pi mode requires Picamera2 by default and reports setup,
+libcamera, startup, and invalid-frame errors with recovery instructions. Set
+`raspberry_pi.allow_opencv_fallback` to `true` only when intentionally allowing
+a USB/OpenCV camera fallback; it is `false` by default. Pi mode disables the
+OpenCV preview/HUD in favor of the sentence-only Tkinter display. Configure
 `raspberry_pi.touchscreen.fullscreen` and optional `width`/`height` for the
 sentence display. Desktop and Windows systems retain their existing webcam and
 OpenCV window behavior by default.
