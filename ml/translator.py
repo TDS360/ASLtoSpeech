@@ -51,7 +51,7 @@ from mp_setup import create_landmarker, detect, draw_landmarks
 from normalize import normalize_landmarks
 from paths import CLASSIFIER_PATH, CONFIG_PATH, HISTORY_CSV, ML_DIR, resolve
 from pipeline import SignStabilizer, polish_sentence
-from runtime_config import resolve_runtime_config
+from runtime_config import landmarker_hand_count, resolve_runtime_config
 
 DEFAULT_CONFIG = {
     "camera_index": 0,
@@ -452,7 +452,8 @@ def main():
     except RuntimeError as e:
         fail(str(e))
     try:
-        landmarker = create_landmarker(num_hands=RUNTIME.num_hands)
+        landmarker = create_landmarker(
+            num_hands=landmarker_hand_count(RUNTIME.raspberry_pi_mode))
     except Exception as e:
         camera.release()
         fail(f"The hand-detection model couldn't load ({e}).")
@@ -521,7 +522,9 @@ def main():
                 if event.kind == "commit":
                     s.letters += event.letter.upper()
                     beep(1200, 50)
-                if not HEADLESS and RUNTIME.show_opencv_window:
+                # Pi mode intentionally skips landmark rendering. Desktop mode
+                # keeps both detected hands visible while classification uses hands[0].
+                if not HEADLESS and RUNTIME.show_hud:
                     for hl in hands:
                         draw_landmarks(frame, hl)
             else:

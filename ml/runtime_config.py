@@ -52,6 +52,16 @@ def detect_raspberry_pi(
     return any(marker in metadata for marker in _PI_MARKERS)
 
 
+def landmarker_hand_count(raspberry_pi_mode: bool) -> int:
+    """Return the detector capacity appropriate for the resolved runtime mode.
+
+    Raspberry Pi runs optimize for a single signing hand. Desktop runs continue
+    detecting two hands so the translator can warn the user while classifying
+    only the first detected hand.
+    """
+    return 1 if raspberry_pi_mode else 2
+
+
 def resolve_runtime_config(
     raspberry_pi: Mapping[str, object],
     *,
@@ -83,7 +93,7 @@ def resolve_runtime_config(
     return RuntimeConfig(
         raspberry_pi_mode=pi_mode,
         use_picamera2=pi_mode,
-        num_hands=1 if pi_mode else 2,
+        num_hands=landmarker_hand_count(pi_mode),
         show_opencv_window=not pi_mode,
         show_hud=not pi_mode,
         use_sentence_display=pi_mode,
