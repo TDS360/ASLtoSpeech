@@ -3,10 +3,23 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from runtime_config import detect_raspberry_pi, resolve_runtime_config
+from runtime_config import (detect_raspberry_pi, landmarker_hand_count,
+                            resolve_runtime_config)
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_landmarker_hand_count_matches_resolved_mode(self):
+        pi_runtime = resolve_runtime_config(
+            {"mode": "enabled"}, system="Windows", read_text=lambda _path: "")
+        desktop_runtime = resolve_runtime_config(
+            {"mode": "disabled"}, system="Linux",
+            read_text=lambda _path: "Raspberry Pi")
+
+        self.assertEqual(landmarker_hand_count(pi_runtime.raspberry_pi_mode), 1)
+        self.assertEqual(pi_runtime.num_hands, 1)
+        self.assertEqual(landmarker_hand_count(desktop_runtime.raspberry_pi_mode), 2)
+        self.assertEqual(desktop_runtime.num_hands, 2)
+
     def test_auto_uses_device_tree_raspberry_pi_metadata(self):
         runtime = resolve_runtime_config(
             {"mode": "auto"}, system="Linux",
