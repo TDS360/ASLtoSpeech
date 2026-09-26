@@ -11,10 +11,15 @@ import tkinter as tk
 class PiSentenceDisplay:
     """A high-contrast fullscreen display for one translated sentence."""
 
-    def __init__(self):
+    def __init__(self, settings=None):
+        settings = settings or {}
         self.root = tk.Tk()
         self.root.configure(background="black")
-        self.root.attributes("-fullscreen", True)
+        fullscreen = bool(settings.get("fullscreen", True))
+        self.root.attributes("-fullscreen", fullscreen)
+        width, height = settings.get("width"), settings.get("height")
+        if not fullscreen and width and height:
+            self.root.geometry(f"{width}x{height}")
         self.root.bind("<Escape>", lambda _event: self.close())
 
         self.sentence = tk.StringVar(value="")
