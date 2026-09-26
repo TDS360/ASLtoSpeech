@@ -14,7 +14,8 @@
       "fullscreen": true,
       "width": null,
       "height": null
-    }
+    },
+    "allow_opencv_fallback": false
   },
   "confidence_threshold": 0.6,
   "letter_hold_seconds": 0.2,
