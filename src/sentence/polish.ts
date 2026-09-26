@@ -64,10 +64,12 @@ export function polishSentence(words: string[]): PolishResult {
   if (source.length === 0) return { raw: "", sentence: "", notes };
 
   const out: string[] = [];
-  let isQuestion = QUESTION_WORDS.has(source[0]);
+  const firstWord = source[0] ?? "";
+  let isQuestion = QUESTION_WORDS.has(firstWord);
 
   for (let i = 0; i < source.length; i++) {
     const word = source[i];
+    if (!word) continue;
     const previous = out[out.length - 1];
     const next = source[i + 1];
 
@@ -78,9 +80,10 @@ export function polishSentence(words: string[]): PolishResult {
       continue;
     }
 
-    if (PROGRESSIVE[word] && previous && ["am", "is", "are"].includes(previous)) {
-      out.push(PROGRESSIVE[word]);
-      notes.push(`"${word}" -> "${PROGRESSIVE[word]}"`);
+    const progressive = PROGRESSIVE[word];
+    if (progressive && previous && ["am", "is", "are"].includes(previous)) {
+      out.push(progressive);
+      notes.push(`"${word}" -> "${progressive}"`);
       continue;
     }
 
@@ -107,12 +110,12 @@ export function polishSentence(words: string[]): PolishResult {
 
   // Yes/no questions such as "YOU HELP ME" read as questions too when they
   // open with a pronoun and contain a request verb.
-  if (!isQuestion && source[0] === "you" && (source.includes("help") || source.includes("understand"))) {
+  if (!isQuestion && firstWord === "you" && (source.includes("help") || source.includes("understand"))) {
     isQuestion = true;
   }
 
   const text = out
-    .map((w, i) => (w === "i" ? "I" : i === 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .map((w, i) => (w === "i" ? "I" : i === 0 ? `${w[0] ?? ""}${w.slice(1)}`.toUpperCase() : w))
     .join(" ");
 
   const sentence = `${text}${isQuestion ? "?" : "."}`;

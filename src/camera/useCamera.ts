@@ -69,7 +69,7 @@ export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>) {
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            deviceId: requestedDeviceId ? { exact: requestedDeviceId } : undefined,
+            ...(requestedDeviceId ? { deviceId: { exact: requestedDeviceId } } : {}),
             width: { ideal: 640 },
             height: { ideal: 480 },
             facingMode: "user",

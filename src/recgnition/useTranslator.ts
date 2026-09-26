@@ -167,7 +167,7 @@ export function useTranslator(
     const { data } = ctx.getImageData(0, 0, 32, 24);
     let total = 0;
     for (let i = 0; i < data.length; i += 4) {
-      total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+      total += ((data[i] ?? 0) + (data[i + 1] ?? 0) + (data[i + 2] ?? 0)) / 3;
     }
     return total / (data.length / 4) / 255;
   }, []);
@@ -203,7 +203,9 @@ export function useTranslator(
 
     frameTimesRef.current.push(now);
     if (frameTimesRef.current.length > 30) frameTimesRef.current.shift();
-    const span = frameTimesRef.current[frameTimesRef.current.length - 1] - frameTimesRef.current[0];
+    const firstFrame = frameTimesRef.current[0];
+    const lastFrame = frameTimesRef.current[frameTimesRef.current.length - 1];
+    const span = lastFrame !== undefined && firstFrame !== undefined ? lastFrame - firstFrame : 0;
     const fps = span > 0 ? ((frameTimesRef.current.length - 1) / span) * 1000 : 0;
 
     const brightness = sampleBrightness(video);
@@ -231,7 +233,9 @@ export function useTranslator(
 
     // Only the first hand feeds the classifier: the training data is
     // single-hand, so guessing from two hands would be dishonest.
-    const prediction = classifyLandmarks(hands[0]);
+    const firstHand = hands[0];
+    if (!firstHand) return;
+    const prediction = classifyLandmarks(firstHand);
     if (!prediction) return;
 
     const event = stabilizerRef.current.push(prediction.letter, prediction.confidence);

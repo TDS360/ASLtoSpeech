@@ -20,6 +20,8 @@ export interface Landmark {
 
 export function normalizeLandmarks(handLandmarks: Landmark[]): number[] {
   const wrist = handLandmarks[0];
+  const midPoint = handLandmarks[9];
+  if (!wrist || !midPoint) return [];
   const shifted = handLandmarks.map((lm) => ({
     x: lm.x - wrist.x,
     y: lm.y - wrist.y,
@@ -27,6 +29,7 @@ export function normalizeLandmarks(handLandmarks: Landmark[]): number[] {
   }));
 
   const mid = shifted[9];
+  if (!mid) return [];
   let scale = Math.sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
   if (scale === 0) scale = 1e-6;
 

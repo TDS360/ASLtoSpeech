@@ -7,12 +7,12 @@
  * can ever be produced.
  */
 import modelJson from "./model/letter-model.json";
-import { predictProbabilities, type ExportedModel } from "./mlp";
-import { normalizeLandmarks, type Landmark } from "./normalize";
+import { predictProbabilities, type ExportedModel } from "./mlp.ts";
+import { normalizeLandmarks, type Landmark } from "./normalize.ts";
 
 const model = modelJson as unknown as ExportedModel;
 
-export const SUPPORTED_LETTERS: string[] = model.labels.map((l) => l.toUpperCase());
+export const SUPPORTED_LETTERS: string[] = model.labels.map((label: string) => label.toUpperCase());
 
 export interface Prediction {
   letter: string;
@@ -30,23 +30,38 @@ export function classifyLandmarks(landmarks: Landmark[]): Prediction | null {
   if (features.length !== model.featureCount) return null;
 
   const probabilities = predictProbabilities(model, features);
+  if (probabilities.length === 0 || model.labels.length === 0) return null;
 
   let best = 0;
   let second = -1;
   for (let i = 1; i < probabilities.length; i++) {
-    if (probabilities[i] > probabilities[best]) best = i;
+    const probability = probabilities[i];
+    const bestProbability = probabilities[best];
+    if (probability !== undefined && bestProbability !== undefined && probability > bestProbability) {
+      best = i;
+    }
   }
   for (let i = 0; i < probabilities.length; i++) {
     if (i === best) continue;
-    if (second === -1 || probabilities[i] > probabilities[second]) second = i;
+    const probability = probabilities[i];
+    const secondProbability = second >= 0 ? probabilities[second] : undefined;
+    if (probability !== undefined && (second === -1 || secondProbability === undefined || probability > secondProbability)) {
+      second = i;
+    }
   }
 
+  const letter = model.labels[best];
+  const confidence = probabilities[best];
+  if (letter === undefined || confidence === undefined) return null;
+  const alternativeLetter = second >= 0 ? model.labels[second] : undefined;
+  const alternativeConfidence = second >= 0 ? probabilities[second] : undefined;
+
   return {
-    letter: model.labels[best].toUpperCase(),
-    confidence: probabilities[best],
+    letter: letter.toUpperCase(),
+    confidence,
     alternative:
-      second >= 0
-        ? { letter: model.labels[second].toUpperCase(), confidence: probabilities[second] }
+      alternativeLetter !== undefined && alternativeConfidence !== undefined
+        ? { letter: alternativeLetter.toUpperCase(), confidence: alternativeConfidence }
         : null,
     inferenceMs: performance.now() - started,
   };

@@ -78,8 +78,9 @@ export function correctWord(raw: string): CorrectionResult {
     return { word: lower, corrected: false, original: lower };
   }
   const matches = COMMON_WORDS.filter((w) => editDistanceAtMostOne(lower, w));
-  if (matches.length === 1) {
-    return { word: matches[0], corrected: true, original: lower };
+  const match = matches[0];
+  if (matches.length === 1 && match !== undefined) {
+    return { word: match, corrected: true, original: lower };
   }
   return { word: lower, corrected: false, original: lower };
 }

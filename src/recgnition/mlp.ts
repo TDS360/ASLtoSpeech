@@ -36,9 +36,11 @@ function forwardLayer(input: number[], layer: DenseLayer): number[] {
   const outSize = layer.bias.length;
   const out = new Array<number>(outSize);
   for (let j = 0; j < outSize; j++) {
-    let sum = layer.bias[j];
+    let sum = layer.bias[j] ?? 0;
     for (let i = 0; i < input.length; i++) {
-      sum += input[i] * layer.weights[i][j];
+      const inputValue = input[i] ?? 0;
+      const row = layer.weights[i];
+      sum += inputValue * (row?.[j] ?? 0);
     }
     out[j] = sum;
   }
@@ -49,7 +51,9 @@ function forwardLayer(input: number[], layer: DenseLayer): number[] {
 export function predictProbabilities(model: ExportedModel, features: number[]): number[] {
   let activations = features;
   for (let i = 0; i < model.layers.length; i++) {
-    activations = forwardLayer(activations, model.layers[i]);
+    const layer = model.layers[i];
+    if (!layer) break;
+    activations = forwardLayer(activations, layer);
     if (i < model.layers.length - 1) activations = relu(activations);
   }
   return softmax(activations);
