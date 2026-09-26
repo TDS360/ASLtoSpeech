@@ -1,18 +1,3 @@
-# ASL Sign Language Translator — Research Notes
-
-Running notes on the research behind this project. Useful for the
-project board's background section and for answering judges'
-questions about *why* things were built this way.
-
-## Why this project matters
-- An estimated 500,000 to 1,000,000 people in the U.S. use ASL as
-  their primary language.
-- About 11 million Americans (roughly 3.6% of the population)
-  identify as deaf or have serious difficulty hearing.
-- ASL is often described as the third most-used language in the
-  U.S., after English and Spanish.
-- Sources: ASLdeafined population overview; RIT deaf demographics
-  guide; Rhode Island Commission on the Deaf and Hard of Hearing.
 
 ## Why landmarks instead of raw images
 - Several existing student/hobby ASL projects extract 21 hand

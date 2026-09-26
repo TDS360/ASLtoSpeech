@@ -31,7 +31,7 @@ import os
 from normalize import normalize_landmarks
 from mp_setup import create_landmarker, detect, draw_landmarks
 
-DATA_DIR = "../data"
+from paths import DATA_DIR
 CSV_PATH = os.path.join(DATA_DIR, "landmarks.csv")
 VALID_LETTERS = "abcdefghiklmnopqrstuvwxy"  # excludes j and z (motion-based)
 

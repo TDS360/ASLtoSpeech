@@ -1,0 +1,23 @@
+{
+  "camera_index": 0,
+  "camera_width": 640,
+  "camera_height": 480,
+  "use_picamera2": false,
+  "headless": false,
+  "confidence_threshold": 0.6,
+  "letter_hold_seconds": 0.2,
+  "word_pause_seconds": 0.45,
+  "smoothing_frames": 5,
+  "spell_correct": true,
+  "beep_feedback": true,
+  "gpio_button_pin": null,
+  "log_level": "INFO",
+  "session_log_path": null,
+  "spell_extra_words": [
+    "asl"
+  ],
+  "sentence_pause_seconds": 2.5,
+  "speak_each_word": true,
+  "speech_rate": 170,
+  "speech_volume": 1.0
+}

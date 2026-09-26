@@ -1,0 +1,14 @@
+opencv-python
+mediapipe
+pandas
+scikit-learn
+numpy
+pyttsx3
+pyspellchecker
+
+# Optional, Raspberry Pi only -- not needed on a regular laptop/desktop:
+#   gpiozero     -- only if you set "gpio_button_pin" in config.json
+#   picamera2    -- only if you set "use_picamera2": true in config.json
+#                   (on Raspberry Pi OS this is usually already installed
+#                   system-wide via apt, not pip -- if you're using a venv,
+#                   create it with --system-site-packages so it can see it)

@@ -13,7 +13,8 @@ import time
 import cv2
 import mediapipe as mp
 
-MODEL_PATH = "../models/hand_landmarker.task"
+from paths import hand_landmarker_path
+MODEL_PATH = hand_landmarker_path()
 
 # The 21 hand landmarks and how they connect to form a skeleton.
 # This is MediaPipe's standard hand topology (wrist = point 0, each
@@ -56,6 +57,9 @@ def create_landmarker(num_hands=1):
     return mp.tasks.vision.HandLandmarker.create_from_options(options)
 
 
+_last_ts = 0
+
+
 def detect(landmarker, rgb_frame):
     """
     Runs hand detection on one RGB frame. Returns the raw result --
@@ -63,7 +67,11 @@ def detect(landmarker, rgb_frame):
     landmarks with .x, .y, .z (normalized 0.0-1.0).
     """
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-    timestamp_ms = int(time.time() * 1000)
+    # detect_for_video requires strictly increasing timestamps; time.time()
+    # can jump backwards (NTP sync) or repeat, which crashes MediaPipe.
+    global _last_ts
+    timestamp_ms = max(int(time.monotonic() * 1000), _last_ts + 1)
+    _last_ts = timestamp_ms
     return landmarker.detect_for_video(mp_image, timestamp_ms)
 
 

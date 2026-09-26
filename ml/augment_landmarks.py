@@ -29,8 +29,9 @@ import os
 import pandas as pd
 import numpy as np
 
-INPUT_PATH = "../data/landmarks.csv"
-OUTPUT_PATH = "../data/landmarks_augmented.csv"
+from paths import DATA_DIR
+INPUT_PATH = os.path.join(DATA_DIR, "landmarks.csv")
+OUTPUT_PATH = os.path.join(DATA_DIR, "landmarks_augmented.csv")
 VARIATIONS_PER_SAMPLE = 4      # how many synthetic copies to generate per real sample
 JITTER_STD = 0.01              # standard deviation of the random noise added per coordinate
 SCALE_RANGE = (0.9, 1.1)       # random scale factor range applied per synthetic sample
