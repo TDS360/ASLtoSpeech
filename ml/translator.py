@@ -41,6 +41,14 @@ class TranslatorStartupError(RuntimeError):
     """A startup failure with a message a user can act on."""
 
 
+class ConfigurationError(TranslatorStartupError):
+    """The translator configuration could not be resolved."""
+
+
+class CameraStartupError(TranslatorStartupError):
+    """The selected camera backend could not be initialized."""
+
+
 class ModelLoadError(TranslatorStartupError):
     """The letter classifier could not be found or read."""
 
@@ -115,8 +123,19 @@ def configure_logging(config: Mapping[str, Any]) -> logging.Logger:
     return logging.getLogger("translator")
 
 
+def create_runtime_config(config: Mapping[str, Any]) -> RuntimeConfig:
+    """Resolve the runtime mode before hardware resources are opened."""
+    try:
+        return resolve_runtime_config(config["raspberry_pi"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ConfigurationError(f"Invalid Raspberry Pi runtime configuration: {error}") from error
+
+
 def load_model(path=CLASSIFIER_PATH):
-    import pickle
+    try:
+        import pickle
+    except ImportError as error:
+        raise ModelLoadError("Python's pickle support is unavailable; reinstall Python and retrain the model.") from error
     if not os.path.exists(path):
         raise ModelLoadError("No trained model at models/letter_classifier.pkl. Run: python ml/train_model.py")
     try:
@@ -127,9 +146,14 @@ def load_model(path=CLASSIFIER_PATH):
 
 
 def create_camera(config: Mapping[str, Any], runtime: RuntimeConfig, logger: logging.Logger):
-    from camera import Camera, CameraError
-    try: return Camera(config, runtime, logger=logger)
-    except CameraError as error: raise TranslatorStartupError(str(error)) from error
+    """Create the configured capture backend without leaking backend exceptions."""
+    try:
+        from camera import Camera
+        return Camera(config, runtime, logger=logger)
+    except Exception as error:
+        raise CameraStartupError(
+            "The camera could not start. Check the camera connection and configured camera index. "
+            f"Underlying error: {error}") from error
 
 
 def create_media_pipe(runtime: RuntimeConfig):
@@ -254,7 +278,7 @@ class RuntimeApplication:
 
     @classmethod
     def startup(cls) -> "RuntimeApplication":
-        config = load_config(); logger = configure_logging(config); runtime = resolve_runtime_config(config["raspberry_pi"])
+        config = load_config(); logger = configure_logging(config); runtime = create_runtime_config(config)
         app = cls(config, runtime, logger)
         try:
             app.camera = create_camera(config, runtime, logger)
@@ -276,7 +300,12 @@ class RuntimeApplication:
         self.display = self.landmarker = self.camera = None
 
     def run(self) -> None:
-        import cv2
+        try:
+            import cv2
+        except ImportError as error:
+            raise CameraStartupError(
+                "OpenCV is unavailable. Install the ML requirements before running the translator. "
+                f"Underlying error: {error}") from error
         spell = create_spellchecker(self.config, self.logger)
         history_path = resolve(self.config["session_log_path"]) if self.config["session_log_path"] else HISTORY_CSV
         session = Session(display=self.display, speaker=self.speaker, spell=spell, spell_correct=self.config["spell_correct"],
