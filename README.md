@@ -92,7 +92,22 @@ Keys: `SPACE` finish word · `ENTER` finish sentence · `BACKSPACE` delete · `p
 
 ## Settings (`ml/config.json`)
 
-`confidence_threshold`, `letter_hold_seconds`, `word_pause_seconds`, `sentence_pause_seconds`, `smoothing_frames`, `spell_correct`, `speak_each_word`, `speech_rate`, `speech_volume`, `beep_feedback`, `camera_index`, `camera_width/height`, `headless`, `use_picamera2`, `gpio_button_pin`, `session_log_path`.
+`confidence_threshold`, `letter_hold_seconds`, `word_pause_seconds`, `sentence_pause_seconds`, `smoothing_frames`, `spell_correct`, `speak_each_word`, `speech_rate`, `speech_volume`, `beep_feedback`, `camera_index`, `camera_width/height`, `headless`, `gpio_button_pin`, `session_log_path`, and the nested `raspberry_pi` section.
+
+`raspberry_pi.mode` controls the platform selection: `auto` (the default) checks
+Linux device-tree model/compatible metadata and falls back to the normal desktop
+webcam/OpenCV workflow when it is not a Pi; `enabled` explicitly forces Pi mode;
+and `disabled` explicitly preserves desktop mode even on a Pi. Pi mode attempts
+Picamera2 using the resolved `raspberry_pi.capture.width`, `height`, and
+`frame_rate` with a BGR888 stream, a two-buffer capture strategy, and one-hand
+MediaPipe tracking. Pi mode requires Picamera2 by default and reports setup,
+libcamera, startup, and invalid-frame errors with recovery instructions. Set
+`raspberry_pi.allow_opencv_fallback` to `true` only when intentionally allowing
+a USB/OpenCV camera fallback; it is `false` by default. Pi mode disables the
+OpenCV preview/HUD in favor of the sentence-only Tkinter display. Configure
+`raspberry_pi.touchscreen.fullscreen` and optional `width`/`height` for the
+sentence display. Desktop and Windows systems retain their existing webcam and
+OpenCV window behavior by default.
 
 ## Dataset and training
 
