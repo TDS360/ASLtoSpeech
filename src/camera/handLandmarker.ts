@@ -19,14 +19,24 @@ export async function getHandLandmarker(): Promise<HandLandmarker> {
 
   pending = (async () => {
     const fileset = await FilesetResolver.forVisionTasks(WASM_BASE);
-    const landmarker = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
-      runningMode: "VIDEO",
-      numHands: 2,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+    // ...existing code...
+    const createLandmarker = (delegate: "GPU" | "CPU") =>
+      HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+    let landmarker: HandLandmarker;
+    try {
+      landmarker = await createLandmarker("GPU");
+    } catch {
+      landmarker = await createLandmarker("CPU");
+    }
+// ...existing code...
     instance = landmarker;
     return landmarker;
   })();

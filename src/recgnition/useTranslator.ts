@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: TranslatorSettings = {
   confidenceThreshold: 0.7,
   holdFrames: 6,
   windowSize: 7,
-  wordPauseMs: 1100,
+  wordPauseMs: 2000,
   targetFps: 15,
   drawSkeleton: true,
 };

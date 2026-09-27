@@ -42,7 +42,7 @@ from sklearn.svm import SVC
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(ROOT, "data", "landmarks.csv")
-EXPORT_DIR = os.path.join(ROOT, "src", "recognition", "model")
+EXPORT_DIR = os.path.join(ROOT, "src", "recgnition", "model")
 MODEL_JSON = os.path.join(EXPORT_DIR, "letter-model.json")
 METRICS_JSON = os.path.join(EXPORT_DIR, "metrics.json")
 
